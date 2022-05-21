@@ -278,7 +278,6 @@ class  PoissonVAE(BaseModuleClass):
             inject_covariates=deeply_inject_covariates,
             use_batch_norm=use_batch_norm_decoder,
             use_layer_norm=use_layer_norm_decoder,
-            scale_activation="softplus" if use_size_factor_key else "softmax",
         )
         
     def _get_inference_input(self, tensors):
