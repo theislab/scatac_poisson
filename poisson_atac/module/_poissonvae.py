@@ -53,10 +53,11 @@ class DecoderPoissonVI(nn.Module):
         inject_covariates: bool = True,
         use_batch_norm: bool = False,
         use_layer_norm: bool = False,
-        scale_activation: Literal["softmax", "softplus"] = "softmax",
+        #scale_activation: Literal["softmax", "softplus"] = "softmax",
+        peak_likelihood: Literal["bernoulli", "poisson"] = "poisson"
     ):
         super().__init__()
-        self.px_decoder = FCLayers(
+        self.y_decoder = FCLayers(
             n_in=n_input,
             n_out=n_hidden,
             n_cat_list=n_cat_list,
@@ -69,22 +70,22 @@ class DecoderPoissonVI(nn.Module):
             activation_fn=torch.nn.LeakyReLU, # adding this because PeakVi uses Leaky Relu in decoder
         )
 
-        #self.region_factor = torch.nn.Parameter(torch.zeros(n_output))
-        #TODO: add region factor later to be more easily able to retrieve it
-        # mean gamma
-        if scale_activation == "softmax":
-            px_scale_activation = nn.Softmax(dim=-1)
-        elif scale_activation == "softplus":
-            px_scale_activation = nn.Softplus()
-        self.px_scale_decoder = nn.Sequential(
-            nn.Linear(n_hidden, n_output, bias=True), 
-            px_scale_activation,
+        if peak_likelihood == "poisson":
+            y_scale_activation = nn.Identity()
+        elif peak_likelihood == "bernoulli":
+            y_scale_activation = nn.Sigmoid()
+            
+        self.y_scale_decoder = nn.Sequential(
+            nn.Linear(n_hidden, n_output), 
+            y_scale_activation,
         )
-
+        self.peak_likelihood = peak_likelihood
+        
     def forward(
         self,
         z: torch.Tensor,
         library: torch.Tensor,
+        region_factor: torch.Tensor,
         *cat_list: int,
     ):
         """
@@ -101,13 +102,17 @@ class DecoderPoissonVI(nn.Module):
         4-tuple of :py:class:`torch.Tensor`
             parameters for the ZINB distribution of expression
         """
-        px = self.px_decoder(z, *cat_list)
-        px_scale = self.px_scale_decoder(px)
-        px_dropout = None 
+        y = self.y_decoder(z, *cat_list)
+        y_scale = self.y_scale_decoder(y)
+    
+        if self.peak_likelihood == "poisson":
         # Clamp to high value: exp(12) ~ 160000 to avoid nans (computational stability)
-        px_rate = torch.exp(library) * px_scale  # torch.clamp( , max=12)
+            p = torch.exp(library + region_factor + y_scale)  # torch.clamp( , max=12)
+        elif self.peak_likelihood == "bernoulli":
+            p = library * torch.sigmoid(region_factor) * y_scale
         px_r = None
-        return px_scale, px_r, px_rate, px_dropout
+        px_dropout = None 
+        return y_scale, px_r, p, px_dropout
     
 class  PoissonVAE(BaseModuleClass):
     """
