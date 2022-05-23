@@ -280,7 +280,8 @@ class  PoissonVAE(BaseModuleClass):
             use_batch_norm=use_batch_norm_decoder,
             use_layer_norm=use_layer_norm_decoder,
         )
-        
+        self.region_factors = torch.nn.Parameter(torch.zeros(self.n_input_regions))
+          
     def _get_inference_input(self, tensors):
         x = tensors[REGISTRY_KEYS.X_KEY]
         batch_index = tensors[REGISTRY_KEYS.BATCH_KEY]
@@ -417,6 +418,7 @@ class  PoissonVAE(BaseModuleClass):
         y_scale, y_region, p, y_dropout = self.decoder(
             decoder_input,
             size_factor,
+            self.region_factors,
             batch_index,
             *categorical_input,
             y,
