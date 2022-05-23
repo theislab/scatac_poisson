@@ -300,7 +300,7 @@ class PoissonVI(ArchesMixin, RNASeqMixin, VAEMixin, UnsupervisedTrainingMixin, B
         indices: Optional[Sequence[int]] = None,
         transform_batch: Optional[Sequence[Union[int, str]]] = None,
         region_list: Optional[Sequence[str]] = None,
-        library_size: Union[float, Literal["latent"]] = 1,
+        library_size: Union[float, Literal["latent"]] = "latent",
         n_samples: int = 1,
         n_samples_overall: int = None,
         batch_size: Optional[int] = None,
@@ -373,10 +373,10 @@ class PoissonVI(ArchesMixin, RNASeqMixin, VAEMixin, UnsupervisedTrainingMixin, B
                 )
             return_numpy = True
         if library_size == "latent":
-            generative_output_key = "px_rate"
+            generative_output_key = "p"
             scaling = 1
         else:
-            generative_output_key = "px_scale"
+            generative_output_key = "y_region"
             scaling = library_size
 
         accs = []
