@@ -439,7 +439,7 @@ class MULTIVAE(BaseModuleClass):
 
         # Accessibility Decoder
         #p = self.z_decoder_accessibility(decoder_input, batch_index, *categorical_input)
-        y_scale, _, p, _ = self.z_decoder_accessibility(
+        y_scale, y_region, p, y_dropout = self.z_decoder_accessibility(
             decoder_input, libsize_acc, self.region_factors, batch_index, *categorical_input
         )
         # Expression Decoder
@@ -452,6 +452,7 @@ class MULTIVAE(BaseModuleClass):
         return dict( 
             p=p,
             y_scale=y_scale,
+            y_region=y_region,
             px_scale=px_scale,
             px_r=torch.exp(self.px_r),
             px_rate=px_rate,
