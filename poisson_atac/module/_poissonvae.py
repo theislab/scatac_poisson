@@ -107,12 +107,13 @@ class DecoderPoissonVI(nn.Module):
     
         if self.peak_likelihood == "poisson":
         # Clamp to high value: exp(12) ~ 160000 to avoid nans (computational stability)
-            p = torch.exp(library + region_factor + y_scale)  # torch.clamp( , max=12)
+            y_region = torch.softmax(y_scale + region_factor, dim=-1)
+            p = torch.exp(library)* y_region # torch.clamp( , max=12)
         elif self.peak_likelihood == "bernoulli":
-            p = library * torch.sigmoid(region_factor) * y_scale
-        px_r = None
-        px_dropout = None 
-        return y_scale, px_r, p, px_dropout
+            y_region = torch.sigmoid(region_factor) * y_scale
+            p = library * y_region
+        y_dropout = None 
+        return y_scale, y_region, p, y_dropout
     
 class  PoissonVAE(BaseModuleClass):
     """
@@ -413,7 +414,7 @@ class  PoissonVAE(BaseModuleClass):
         if not self.use_size_factor_key:
             size_factor = library
 
-        px_scale, px_r, px_rate, px_dropout = self.decoder(
+        y_scale, y_region, p, y_dropout = self.decoder(
             decoder_input,
             size_factor,
             batch_index,
@@ -422,7 +423,7 @@ class  PoissonVAE(BaseModuleClass):
         )
 
         return dict(
-            px_scale=px_scale, px_r=px_r, px_rate=px_rate, px_dropout=px_dropout
+            y_scale=y_scale, y_region=y_region, p=p, y_dropout=y_dropout
         )
 
     def loss(
@@ -437,9 +438,9 @@ class  PoissonVAE(BaseModuleClass):
 
         qz_m = inference_outputs["qz_m"]
         qz_v = inference_outputs["qz_v"]
-        px_rate = generative_outputs["px_rate"]
-        px_r = generative_outputs["px_r"]
-        px_dropout = generative_outputs["px_dropout"]
+        p = generative_outputs["p"]
+        y_region = generative_outputs["y_region"]
+        y_dropout = generative_outputs["y_dropout"]
 
         mean = torch.zeros_like(qz_m)
         scale = torch.ones_like(qz_v)
@@ -461,7 +462,7 @@ class  PoissonVAE(BaseModuleClass):
         else:
             kl_divergence_l = 0.0
 
-        reconst_loss = self.get_reconstruction_loss(x, px_rate, px_r, px_dropout)
+        reconst_loss = self.get_reconstruction_loss(x, p)
 
         kl_local_for_warmup = kl_divergence_z
         kl_local_no_warmup = kl_divergence_l
@@ -476,6 +477,6 @@ class  PoissonVAE(BaseModuleClass):
         kl_global = torch.tensor(0.0)
         return LossRecorder(loss, reconst_loss, kl_local, kl_global)
 
-    def get_reconstruction_loss(self, x, px_rate, px_r, px_dropout) -> torch.Tensor:
-        reconst_loss = -Poisson(px_rate).log_prob(x).sum(dim=-1)
+    def get_reconstruction_loss(self, x, p) -> torch.Tensor:
+        reconst_loss = -Poisson(p).log_prob(x).sum(dim=-1)
         return reconst_loss
