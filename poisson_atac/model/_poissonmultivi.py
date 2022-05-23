@@ -179,6 +179,7 @@ class MULTIVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass):
         )
         self.fully_paired = fully_paired
         self.n_latent = n_latent
+        self.peak_likelihood=peak_likelihood
         self.init_params_ = self._get_init_params(locals())
         self.n_genes = n_genes
 
@@ -491,15 +492,22 @@ class MULTIVI(VAEMixin, UnsupervisedTrainingMixin, BaseModelClass):
                 generative_kwargs=generative_kwargs,
                 compute_loss=False,
             )
-            p = generative_outputs["p"].cpu()
 
-            if normalize_cells:
-                p *= inference_outputs["libsize_acc"].cpu()
-            if normalize_regions:
-                p *= torch.sigmoid(self.module.region_factors).cpu()
-            if threshold:
-                p[p < threshold] = 0
-                p = csr_matrix(p.numpy())
+            if self.peak_likelihood=="bernoulli":
+                p = generative_outputs["y_scale"].cpu()
+                libsize=inference_outputs["libsize_acc"].cpu()
+                if normalize_cells:
+                    p *= libsize
+                if normalize_regions:
+                    p *= torch.sigmoid(self.module.region_factors).cpu()
+                if threshold:
+                    p[p < threshold] = 0
+                    p = csr_matrix(p.numpy())
+            elif self.peak_likelihood=="poisson":
+                if normalize_cells and normalize_regions:
+                    p = generative_outputs["p"].cpu()
+                else:
+                    p = torch.exp(generative_outputs["y_scale"]).cpu()
             if region_mask is not None:
                 p = p[:, region_mask]
             imputed.append(p)
