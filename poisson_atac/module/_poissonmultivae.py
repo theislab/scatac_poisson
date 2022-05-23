@@ -234,10 +234,8 @@ class MULTIVAE(BaseModuleClass):
 
         ## accessibility region-specific factors
         self.region_factors = None
-        if region_factors and self.peak_likelihood == "bernoulli":
+        if region_factors:
             self.region_factors = torch.nn.Parameter(torch.zeros(self.n_input_regions))
-        elif region_factors and self.peak_likelihood == "poisson":
-            self.region_factors = torch.nn.Parameter(torch.ones(self.n_input_regions)/n_input_regions)
         ## expression dispersion parameters
         self.px_r = torch.nn.Parameter(torch.randn(n_input_genes))
 
